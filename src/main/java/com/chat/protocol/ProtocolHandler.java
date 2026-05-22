@@ -19,8 +19,10 @@ public class ProtocolHandler {
      * @return bytes del mensaje
      */
     public byte[] serializeMessage(Message message) {
-        // TODO: Implementar
-        return null;
+        if (message == null) {
+            throw new IllegalArgumentException("Mensaje no puede ser nulo");
+        }
+        return message.toBytes();
     }
 
     /**
@@ -30,8 +32,11 @@ public class ProtocolHandler {
      * @return Message deserializado, null si hay error
      */
     public Message deserializeMessage(byte[] data) {
-        // TODO: Implementar
-        return null;
+        if (data == null || data.length == 0) {
+            System.err.println("Error: Datos de mensaje vacíos");
+            return null;
+        }
+        return Message.fromBytes(data);
     }
 
     /**
@@ -41,8 +46,10 @@ public class ProtocolHandler {
      * @return bytes del mensaje
      */
     public byte[] serializeHandshake(HandshakeMessage handshake) {
-        // TODO: Implementar
-        return null;
+        if (handshake == null) {
+            throw new IllegalArgumentException("Handshake message no puede ser nulo");
+        }
+        return handshake.toBytes();
     }
 
     /**
@@ -52,7 +59,10 @@ public class ProtocolHandler {
      * @return HandshakeMessage deserializado, null si hay error
      */
     public HandshakeMessage deserializeHandshake(byte[] data) {
-        // TODO: Implementar
-        return null;
+        if (data == null || data.length == 0) {
+            System.err.println("Error: Datos de handshake vacíos");
+            return null;
+        }
+        return HandshakeMessage.fromBytes(data);
     }
 }

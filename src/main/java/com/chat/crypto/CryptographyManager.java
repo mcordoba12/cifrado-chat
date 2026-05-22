@@ -1,6 +1,11 @@
 package com.chat.crypto;
 
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.ECGenParameterSpec;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * Gestor centralizado de operaciones criptográficas.
@@ -19,10 +24,17 @@ public class CryptographyManager {
      * Genera un par de claves ECDH usando la curva P-256 (secp256r1).
      *
      * @return par de claves (pública + privada)
+     * @throws RuntimeException si hay error en la generación de claves
      */
     public KeyPair generateECKeyPair() {
-        // TODO: Implementar
-        return null;
+        try {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
+            ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256r1");
+            keyGen.initialize(ecSpec);
+            return keyGen.generateKeyPair();
+        } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
+            throw new RuntimeException("Error generando par de claves ECDH: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -30,10 +42,15 @@ public class CryptographyManager {
      *
      * @param data datos a hashear
      * @return hash SHA-256 (32 bytes)
+     * @throws RuntimeException si hay error en el cálculo del hash
      */
     public byte[] sha256(byte[] data) {
-        // TODO: Implementar
-        return null;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return digest.digest(data);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error calculando SHA-256: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -44,9 +61,16 @@ public class CryptographyManager {
      *
      * @param sharedSecret shared secret del protocolo ECDH (256 bits)
      * @return clave AES-256 (32 bytes)
+     * @throws RuntimeException si hay error en la derivación
      */
     public byte[] deriveAESKey(byte[] sharedSecret) {
-        // TODO: Implementar
-        return null;
+        String derivationConstant = "CIPHER_KEY_DERIVATION";
+        byte[] constantBytes = derivationConstant.getBytes();
+
+        byte[] input = new byte[sharedSecret.length + constantBytes.length];
+        System.arraycopy(sharedSecret, 0, input, 0, sharedSecret.length);
+        System.arraycopy(constantBytes, 0, input, sharedSecret.length, constantBytes.length);
+
+        return sha256(input);
     }
 }

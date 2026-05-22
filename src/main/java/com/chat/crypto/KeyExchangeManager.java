@@ -1,7 +1,10 @@
 package com.chat.crypto;
 
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.KeyAgreement;
 
 /**
  * Gestor del protocolo de intercambio de claves ECDH P-256.
@@ -27,7 +30,7 @@ public class KeyExchangeManager {
      * @param cryptoManager gestor criptográfico
      */
     public void generateLocalKeyPair(CryptographyManager cryptoManager) {
-        // TODO: Implementar
+        this.localKeyPair = cryptoManager.generateECKeyPair();
     }
 
     /**
@@ -36,8 +39,10 @@ public class KeyExchangeManager {
      * @return clave pública X.509 encoded
      */
     public byte[] getPublicKeyEncoded() {
-        // TODO: Implementar
-        return null;
+        if (localKeyPair == null) {
+            throw new IllegalStateException("Par de claves no ha sido generado");
+        }
+        return localKeyPair.getPublic().getEncoded();
     }
 
     /**
@@ -47,8 +52,29 @@ public class KeyExchangeManager {
      * @return true si el cálculo fue exitoso, false si hubo error
      */
     public boolean computeSharedSecret(byte[] remotePublicKeyBytes) {
-        // TODO: Implementar
-        return false;
+        if (localKeyPair == null) {
+            System.err.println("Error: Par de claves no ha sido generado");
+            return false;
+        }
+
+        try {
+            // Reconstruir clave pública remota desde bytes X.509
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(remotePublicKeyBytes);
+            PublicKey remotePublicKey = keyFactory.generatePublic(keySpec);
+
+            // Calcular shared secret usando ECDH
+            KeyAgreement keyAgreement = KeyAgreement.getInstance("ECDH");
+            keyAgreement.init(localKeyPair.getPrivate());
+            keyAgreement.doPhase(remotePublicKey, true);
+            this.sharedSecret = keyAgreement.generateSecret();
+
+            return true;
+        } catch (Exception e) {
+            System.err.println("Error calculando shared secret: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
 
     /**
@@ -59,8 +85,10 @@ public class KeyExchangeManager {
      * @return shared secret (32 bytes)
      */
     public byte[] getSharedSecret() {
-        // TODO: Implementar
-        return null;
+        if (sharedSecret == null) {
+            throw new IllegalStateException("Shared secret no ha sido calculado");
+        }
+        return sharedSecret;
     }
 
     /**
@@ -69,6 +97,19 @@ public class KeyExchangeManager {
      * @param derivedKey clave derivada (típicamente AES-256)
      */
     public static void logKeyDerivationDebug(byte[] derivedKey) {
-        // TODO: Implementar - mostrar primeros bytes de la clave en hexadecimal
+        if (derivedKey == null || derivedKey.length == 0) {
+            System.err.println("Error: Clave derivada es nula o vacía");
+            return;
+        }
+
+        StringBuilder hexString = new StringBuilder();
+        int bytesToShow = Math.min(8, derivedKey.length);
+        for (int i = 0; i < bytesToShow; i++) {
+            hexString.append(String.format("%02X ", derivedKey[i] & 0xFF));
+        }
+
+        System.out.println("[KEY EXCHANGE DEBUG]");
+        System.out.println("  Clave derivada (primeros " + bytesToShow + " bytes): " + hexString.toString().trim());
+        System.out.println("  Longitud total: " + derivedKey.length + " bytes");
     }
 }

@@ -1,6 +1,9 @@
 package com.chat.network;
 
 import java.io.IOException;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
 
 /**
  * Abstracción de una conexión TCP.
@@ -15,6 +18,27 @@ import java.io.IOException;
  */
 public class Connection {
 
+    private Socket socket;
+    private DataInputStream inputStream;
+    private DataOutputStream outputStream;
+    private boolean open;
+
+    /**
+     * Crea una conexión a partir de un socket existente.
+     *
+     * @param socket socket TCP existente
+     * @throws IOException si hay error al crear los streams
+     */
+    public Connection(Socket socket) throws IOException {
+        if (socket == null) {
+            throw new IllegalArgumentException("Socket no puede ser nulo");
+        }
+        this.socket = socket;
+        this.inputStream = new DataInputStream(socket.getInputStream());
+        this.outputStream = new DataOutputStream(socket.getOutputStream());
+        this.open = true;
+    }
+
     /**
      * Lee un frame completo de la conexión.
      *
@@ -25,8 +49,31 @@ public class Connection {
      * @throws IOException si hay error en la lectura
      */
     public byte[] readFrame() throws IOException {
-        // TODO: Implementar
-        return null;
+        if (!open) {
+            throw new IOException("Conexión cerrada");
+        }
+
+        synchronized (inputStream) {
+            try {
+                // Leer 4 bytes de length (big-endian)
+                int length = inputStream.readInt();
+
+                if (length < 0) {
+                    System.err.println("Error: Longitud negativa recibida");
+                    return null;
+                }
+
+                // Leer exactamente 'length' bytes
+                byte[] data = new byte[length];
+                inputStream.readFully(data);
+
+                return data;
+            } catch (IOException e) {
+                // Si hay error de lectura, la conexión se cerró
+                open = false;
+                throw e;
+            }
+        }
     }
 
     /**
@@ -39,7 +86,30 @@ public class Connection {
      * @throws IOException si hay error en la escritura
      */
     public void writeFrame(byte[] data) throws IOException {
-        // TODO: Implementar
+        if (data == null) {
+            throw new IllegalArgumentException("Datos no pueden ser nulos");
+        }
+
+        if (!open) {
+            throw new IOException("Conexión cerrada");
+        }
+
+        synchronized (outputStream) {
+            try {
+                // Escribir 4 bytes de length (big-endian)
+                outputStream.writeInt(data.length);
+
+                // Escribir datos
+                outputStream.write(data);
+
+                // Flush para asegurar que se envía inmediatamente
+                outputStream.flush();
+            } catch (IOException e) {
+                // Si hay error de escritura, la conexión se cerró
+                open = false;
+                throw e;
+            }
+        }
     }
 
     /**
@@ -48,7 +118,25 @@ public class Connection {
      * @throws IOException si hay error al cerrar
      */
     public void close() throws IOException {
-        // TODO: Implementar
+        if (!open) {
+            return;
+        }
+
+        try {
+            open = false;
+            if (inputStream != null) {
+                inputStream.close();
+            }
+            if (outputStream != null) {
+                outputStream.close();
+            }
+            if (socket != null) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            System.err.println("Error cerrando conexión: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -57,7 +145,6 @@ public class Connection {
      * @return true si está abierta, false si está cerrada
      */
     public boolean isOpen() {
-        // TODO: Implementar
-        return false;
+        return open && socket != null && socket.isConnected() && !socket.isClosed();
     }
 }

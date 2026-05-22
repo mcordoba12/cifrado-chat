@@ -2,6 +2,7 @@ package com.chat.ui;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 /**
  * Interfaz de usuario del chat.
@@ -12,9 +13,9 @@ import java.io.IOException;
  * - Manejo de comando /salir
  *
  * Flujo:
- * 1. new ChatUI(connection, messageWriter)
- * 2. start() → thread que lee stdin y envía mensajes cifrados
- * 3. Muestra mensajes recibidos en el hilo principal
+ * 1. new ChatUI()
+ * 2. readUserInput() → lee líneas de stdin en thread separado
+ * 3. displayMessage() → muestra mensajes recibidos
  */
 public class ChatUI {
 
@@ -24,7 +25,7 @@ public class ChatUI {
      * Crea la UI del chat.
      */
     public ChatUI() {
-        // TODO: Implementar
+        this.inputReader = new BufferedReader(new InputStreamReader(System.in));
     }
 
     /**
@@ -34,8 +35,13 @@ public class ChatUI {
      * @throws IOException si hay error en lectura
      */
     public String readUserInput() throws IOException {
-        // TODO: Implementar
-        return null;
+        try {
+            String line = inputReader.readLine();
+            return line;  // null si EOF
+        } catch (IOException e) {
+            System.err.println("Error leyendo entrada del usuario: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -45,7 +51,10 @@ public class ChatUI {
      * @param content contenido del mensaje
      */
     public void displayMessage(String sender, String content) {
-        // TODO: Implementar
+        System.out.println();
+        System.out.println("[" + sender + "]: " + content);
+        System.out.print("> ");
+        System.out.flush();
     }
 
     /**
@@ -54,7 +63,10 @@ public class ChatUI {
      * @param message mensaje a mostrar
      */
     public void displaySystemMessage(String message) {
-        // TODO: Implementar
+        System.out.println();
+        System.out.println("[SISTEMA]: " + message);
+        System.out.print("> ");
+        System.out.flush();
     }
 
     /**
@@ -63,7 +75,10 @@ public class ChatUI {
      * @param error error a mostrar
      */
     public void displayError(String error) {
-        // TODO: Implementar
+        System.out.println();
+        System.out.println("[ERROR]: " + error);
+        System.out.print("> ");
+        System.out.flush();
     }
 
     /**
@@ -72,6 +87,13 @@ public class ChatUI {
      * @throws IOException si hay error al cerrar
      */
     public void close() throws IOException {
-        // TODO: Implementar
+        try {
+            if (inputReader != null) {
+                inputReader.close();
+            }
+        } catch (IOException e) {
+            System.err.println("Error cerrando UI: " + e.getMessage());
+            throw e;
+        }
     }
 }
