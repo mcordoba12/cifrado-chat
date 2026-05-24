@@ -1,62 +1,160 @@
 package com.chat.network;
 
-/**
- * Servidor de chat.
- *
- * Responsabilidades:
- * - Escuchar en puerto especificado
- * - Aceptar conexión única de cliente
- * - Orquestar protocolo ECDH
- * - Manejar loop de chat cifrado
- *
- * Flujo:
- * 1. new ChatServer(port)
- * 2. start() → bloquea en ServerSocket.accept()
- * 3. Una vez conectado, inicia KeyExchange
- * 4. Inicia loop de lectura/escritura de mensajes cifrados
- */
+import com.chat.crypto.CryptographyManager;
+import com.chat.crypto.KeyExchangeManager;
+import com.chat.crypto.MessageCryptor;
+import com.chat.protocol.Message;
+import com.chat.ui.ChatUI;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class ChatServer {
 
     private int port;
     private Connection connection;
+    private MessageCryptor cryptor;
+    private ChatUI ui;
+    private AtomicBoolean active;
 
-    /**
-     * Crea servidor que escucha en el puerto especificado.
-     *
-     * @param port puerto TCP a escuchar
-     */
     public ChatServer(int port) {
-        // TODO: Implementar
+        this.port = port;
+        this.ui = new ChatUI();
+        this.active = new AtomicBoolean(false);
     }
 
-    /**
-     * Inicia el servidor.
-     *
-     * Bloquea hasta que se establezca conexión y se complete el handshake.
-     *
-     * @throws Exception si hay error en la configuración o handshake
-     */
     public void start() throws Exception {
-        // TODO: Implementar
+        CryptographyManager cryptoManager = new CryptographyManager();
+        KeyExchangeManager keyEx = new KeyExchangeManager();
+
+        System.out.println("[HANDSHAKE] Generando par de claves locales...");
+        keyEx.generateLocalKeyPair(cryptoManager);
+
+        System.out.println("[HANDSHAKE] Esperando cliente en puerto " + port + "...");
+        Socket socket;
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            socket = serverSocket.accept();
+        }
+        System.out.println("[HANDSHAKE] Cliente conectado desde " + socket.getInetAddress());
+        this.connection = new Connection(socket);
+
+        byte[] localPub = keyEx.getPublicKeyEncoded();
+        System.out.println("[HANDSHAKE] Enviando clave pública (" + localPub.length + " bytes)...");
+        connection.writeFrame(localPub);
+
+        System.out.println("[HANDSHAKE] Esperando clave pública remota...");
+        byte[] remotePub = connection.readFrame();
+        System.out.println("[HANDSHAKE] Clave remota recibida (" + remotePub.length + " bytes)");
+
+        if (!keyEx.computeSharedSecret(remotePub)) {
+            throw new Exception("Error calculando shared secret ECDH");
+        }
+        System.out.println("[HANDSHAKE] Shared secret calculado");
+
+        byte[] aesKey = cryptoManager.deriveAESKey(keyEx.getSharedSecret());
+        KeyExchangeManager.logKeyDerivationDebug(aesKey);
+        this.cryptor = new MessageCryptor(aesKey);
+
+        System.out.println("[CHAT] Cifrado establecido. Escribe tu mensaje (o /salir para terminar):");
+        try {
+            chatLoop();
+        } finally {
+            shutdown();
+        }
     }
 
-    /**
-     * Inicia el loop de lectura de mensajes desde cliente y escritura desde usuario.
-     *
-     * Bloquea indefinidamente hasta que usuario escriba /salir o se desconecte cliente.
-     *
-     * @throws Exception si hay error durante el chat
-     */
     public void chatLoop() throws Exception {
-        // TODO: Implementar
+        active.set(true);
+
+        Thread receiver = new Thread(() -> {
+            try {
+                while (active.get()) {
+                    byte[] frame = connection.readFrame();
+                    if (frame == null) break;
+
+                    String payload = cryptor.decrypt(frame);
+                    if (payload == null) {
+                        ui.displayError("Mensaje corrupto o manipulado detectado");
+                        continue;
+                    }
+
+                    byte[] msgBytes = Base64.getDecoder().decode(payload);
+                    Message msg = Message.fromBytes(msgBytes);
+                    if (msg == null) continue;
+
+                    if (msg.isShutdown()) {
+                        ui.displaySystemMessage("El otro usuario se desconectó. Presiona Enter para salir.");
+                        break;
+                    }
+                    ui.displayMessage("REMOTO", msg.getContent());
+                }
+            } catch (IOException e) {
+                if (active.get()) {
+                    ui.displaySystemMessage("Conexión cerrada inesperadamente. Presiona Enter para salir.");
+                }
+            } finally {
+                active.set(false);
+            }
+        });
+        receiver.setDaemon(true);
+        receiver.start();
+
+        try {
+            while (active.get()) {
+                System.out.print("> ");
+                System.out.flush();
+                String input = ui.readUserInput();
+
+                if (!active.get()) break;
+                if (input == null) {
+                    sendShutdown();
+                    break;
+                }
+
+                boolean isShutdown = input.equals("/salir");
+                Message msg = isShutdown
+                    ? new Message(Message.TYPE_SHUTDOWN, "")
+                    : new Message(input);
+
+                try {
+                    String payload = Base64.getEncoder().encodeToString(msg.toBytes());
+                    connection.writeFrame(cryptor.encrypt(payload));
+                } catch (IOException e) {
+                    break;
+                }
+
+                if (isShutdown) break;
+            }
+        } catch (IOException e) {
+            // stdin cerrado
+        }
+
+        active.set(false);
+        try { connection.close(); } catch (IOException e) { /* ya cerrada */ }
+        receiver.join(2000);
     }
 
-    /**
-     * Cierra el servidor y recursos asociados.
-     *
-     * @throws Exception si hay error al cerrar
-     */
+    private void sendShutdown() {
+        if (cryptor == null) return;
+        try {
+            Message msg = new Message(Message.TYPE_SHUTDOWN, "");
+            String payload = Base64.getEncoder().encodeToString(msg.toBytes());
+            connection.writeFrame(cryptor.encrypt(payload));
+        } catch (Exception e) {
+            // conexión puede estar ya cerrada
+        }
+    }
+
     public void shutdown() throws Exception {
-        // TODO: Implementar
+        active.set(false);
+        try {
+            if (connection != null) connection.close();
+        } catch (IOException e) {
+            // ya cerrada
+        }
+        System.out.println("[SISTEMA]: Chat terminado.");
     }
 }

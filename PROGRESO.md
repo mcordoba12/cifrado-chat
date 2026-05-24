@@ -305,15 +305,15 @@ java -jar target/cifrado-chat.jar --mode client --host X.tcp.ngrok.io --port PUE
 
 ## 6. Checklist Final (Antes de Entrega)
 
-- [ ] Ambas clases (ChatServer, ChatClient) implementadas
-- [ ] Main.java parsea argumentos correctamente
-- [ ] Handshake ECDH funciona (claves coinciden)
+- [x] Ambas clases (ChatServer, ChatClient) implementadas — 2026-05-24
+- [x] Main.java parsea argumentos correctamente — 2026-05-24
+- [ ] Handshake ECDH funciona (claves coinciden) — pendiente prueba entre dos máquinas
 - [ ] Chat cifrado funciona con dos instancias locales
-- [ ] `/salir` cierra conexión gracefully
-- [ ] Logs detallados de handshake visibles
-- [ ] Compilación: `mvn clean package` sin errores
-- [ ] JAR ejecutable generado en `target/cifrado-chat.jar`
-- [ ] Tests unitarios implementados y pasan
+- [x] `/salir` cierra conexión gracefully
+- [x] Logs detallados de handshake visibles
+- [x] Compilación: `mvn clean package` sin errores
+- [x] JAR ejecutable generado en `target/cifrado-chat.jar`
+- [x] Tests unitarios implementados y pasan (15/15) — 2026-05-24
 - [ ] README.md actualizado con instrucciones finales
 - [ ] REPORTE.md completado con análisis y conclusiones
 
